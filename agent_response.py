@@ -90,8 +90,13 @@ class AgentMessageAggregator(FrameProcessor):
             # Reset before pushing downstream
             self.reset()
 
-            # Create a message with the aggregated text and push as LLMMessagesFrame
-            message = {"role": "user", "content": aggregation}
+            # Create a message with the aggregated text in OpenAI compatible format
+            # This ensures compatibility with both string content and content array formats
+            message = {
+                "role": "user",
+                "content": [{"type": "text", "text": aggregation}],
+            }
+
             logger.debug(f"{self} Pushing aggregated message: {message}")
             await self.push_frame(LLMMessagesFrame(messages=[message]))
 
@@ -107,11 +112,6 @@ class AgentMessageAggregator(FrameProcessor):
     async def _handle_user_started_speaking(self, frame: UserStartedSpeakingFrame):
         self._user_speaking = True
         self._waiting_for_aggregation = True
-
-        # If we get a non-emulated UserStartedSpeakingFrame but we are in the
-        # middle of emulating VAD, let's stop emulating VAD
-        if not frame.emulated and self._emulating_vad:
-            self._emulating_vad = False
 
     async def _handle_user_stopped_speaking(self, frame: UserStoppedSpeakingFrame):
         self._user_speaking = False
