@@ -1,5 +1,4 @@
 import asyncio
-from typing import Optional
 
 from loguru import logger
 
@@ -22,11 +21,11 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 class AgentMessageAggregator(FrameProcessor):
     """
     Message aggregator for AgentLLM that processes and aggregates transcriptions from user speech.
-    
-    This aggregator collects transcriptions between VAD events (UserStartedSpeakingFrame and 
+
+    This aggregator collects transcriptions between VAD events (UserStartedSpeakingFrame and
     UserStoppedSpeakingFrame) and sends the aggregated message to the AgentLLM service for processing.
     Unlike context-based aggregators, this doesn't maintain a full conversation context.
-    
+
     The agent will handle its own conversation context internally, so we just need to pass
     the aggregated user message as a simple message.
     """
@@ -38,14 +37,14 @@ class AgentMessageAggregator(FrameProcessor):
     ):
         super().__init__(**kwargs)
         self._aggregation_timeout = aggregation_timeout
-        
+
         # Aggregation state
         self._aggregation = ""
         self._seen_interim_results = False
         self._user_speaking = False
         self._emulating_vad = False
         self._waiting_for_aggregation = False
-        
+
         # Event and task for timeout-based aggregation
         self._aggregation_event = asyncio.Event()
         self._aggregation_task = None
@@ -87,10 +86,10 @@ class AgentMessageAggregator(FrameProcessor):
         """Push the aggregated message downstream as an LLMMessagesFrame."""
         if len(self._aggregation) > 0:
             aggregation = self._aggregation
-            
+
             # Reset before pushing downstream
             self.reset()
-            
+
             # Create a message with the aggregated text and push as LLMMessagesFrame
             message = {"role": "user", "content": aggregation}
             logger.debug(f"{self} Pushing aggregated message: {message}")
@@ -119,7 +118,7 @@ class AgentMessageAggregator(FrameProcessor):
         # If the last thing we saw is not an interim transcription, push the aggregation
         if not self._seen_interim_results:
             await self.push_aggregation()
-        
+
         # Pass the frame downstream
         await self.push_frame(frame)
 
@@ -132,19 +131,19 @@ class AgentMessageAggregator(FrameProcessor):
             return
 
         self._aggregation += f" {text}" if self._aggregation else text
-        
+
         # Reset interim results flag
         self._seen_interim_results = False
-        
+
         # Reset aggregation timer
         self._aggregation_event.set()
-        
+
         # Pass the transcription frame downstream so other processors can see it
         await self.push_frame(frame)
 
     async def _handle_interim_transcription(self, frame: InterimTranscriptionFrame):
         self._seen_interim_results = True
-        
+
         # Pass the interim transcription frame downstream
         await self.push_frame(frame)
 
@@ -160,7 +159,9 @@ class AgentMessageAggregator(FrameProcessor):
     async def _aggregation_task_handler(self):
         while True:
             try:
-                await asyncio.wait_for(self._aggregation_event.wait(), self._aggregation_timeout)
+                await asyncio.wait_for(
+                    self._aggregation_event.wait(), self._aggregation_timeout
+                )
                 await self._maybe_push_bot_interruption()
             except asyncio.TimeoutError:
                 if not self._user_speaking:
@@ -181,5 +182,7 @@ class AgentMessageAggregator(FrameProcessor):
         (e.g., when the user whispers a short utterance)
         """
         if not self._user_speaking and not self._waiting_for_aggregation:
-            await self.push_frame(EmulateUserStartedSpeakingFrame(), FrameDirection.UPSTREAM)
+            await self.push_frame(
+                EmulateUserStartedSpeakingFrame(), FrameDirection.UPSTREAM
+            )
             self._emulating_vad = True
