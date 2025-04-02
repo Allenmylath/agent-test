@@ -77,6 +77,10 @@ class AgentLLM(LLMService):
 
             await self.push_frame(frame, direction)
             await self.start(frame)
+        if isinstance(frame, StartInterruptionFrame):
+            await _handle_interruptions(frame)
+            await self.push_frame(frame, direction)
+            
 
         if isinstance(frame, LLMMessagesFrame):
             logger.debug(f"Received LLMMessagesFrame: {frame}")
@@ -84,6 +88,8 @@ class AgentLLM(LLMService):
             await self._cancel_llm_task()  # Cancel existing task if any
             self._llm_task = self.create_task(self._process_llm_messages(frame))
             logger.debug(f"{self} Created LLM task")
+        else:
+            await self.push_frame(frame, direction)
 
     async def _process_llm_messages(self, frame: LLMMessagesFrame):
         """Process LLM messages frame and run the agent."""
