@@ -78,9 +78,8 @@ class AgentLLM(LLMService):
             await self.push_frame(frame, direction)
             await self.start(frame)
         if isinstance(frame, StartInterruptionFrame):
-            await _handle_interruptions(frame)
+            await self._handle_interruptions(frame)
             await self.push_frame(frame, direction)
-            
 
         if isinstance(frame, LLMMessagesFrame):
             logger.debug(f"Received LLMMessagesFrame: {frame}")
